@@ -1,0 +1,103 @@
+:root {
+
+  --hc-bg:           #FFFFFF;
+  --hc-bg-grouped:   #F2F2F7;
+  --hc-bg-pressed:   #D1D1D6;
+
+  --hc-bubble-me:    #007AFF;
+  --hc-bubble-other: #E9E9EB;
+
+  --hc-text:         #000000;
+  --hc-text-2:       rgba(60, 60, 67, .60);
+  --hc-text-3:       rgba(60, 60, 67, .30);
+  --hc-text-on-me:   #FFFFFF;
+
+  --hc-sep:          rgba(60, 60, 67, .29);
+  --hc-sep-opaque:   #C6C6C8;
+
+  --hc-tint:         #007AFF;
+  --hc-green:        #34C759;
+  --hc-red:          #FF3B30;
+  --hc-orange:       #FF9500;
+  --hc-gray:         #8E8E93;
+
+  --hc-nav-bg:       rgba(255, 255, 255, .72);
+  --hc-nav-border:   rgba(60, 60, 67, .29);
+  --hc-input-bg:     #FFFFFF;
+  --hc-input-field:  #FFFFFF;
+  --hc-input-border: #E5E5EA;
+  --hc-card-bg:      #FFFFFF;
+  --hc-overlay:      rgba(0, 0, 0, .40);
+
+  --hc-nav-h:        44px;
+  --hc-tab-h:        49px;
+  --hc-pad:          16px;
+  --hc-row-h:        56px;
+  --hc-radius-card:  10px;
+  --hc-radius-bubble:18px;
+  --hc-bubble-max:   72%;
+
+  --hc-ease:         cubic-bezier(.25, .1, .25, 1);
+  --hc-dur:          220ms;
+
+  --hc-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+             "Helvetica Neue", "Microsoft YaHei", sans-serif;
+
+  --hc-fs-large-title: 34px;
+  --hc-fs-nav:          17px;
+  --hc-fs-bubble:       17px;
+  --hc-fs-name:         17px;
+  --hc-fs-preview:      15px;
+  --hc-fs-sub:          13px;
+  --hc-fs-tiny:         11px;
+}
+
+.hc-dark {
+  --hc-bg:           #000000;
+  --hc-bg-grouped:   #1C1C1E;
+  --hc-bg-pressed:   #2C2C2E;
+
+  --hc-bubble-me:    #0A84FF;
+  --hc-bubble-other: #262628;
+
+  --hc-text:         #FFFFFF;
+  --hc-text-2:       rgba(235, 235, 245, .60);
+  --hc-text-3:       rgba(235, 235, 245, .30);
+
+  --hc-sep:          rgba(84, 84, 88, .65);
+  --hc-sep-opaque:   #38383A;
+
+  --hc-tint:         #0A84FF;
+  --hc-green:        #30D158;
+  --hc-red:          #FF453A;
+  --hc-orange:       #FF9F0A;
+
+  --hc-nav-bg:       rgba(28, 28, 30, .72);
+  --hc-nav-border:   rgba(84, 84, 88, .65);
+  --hc-input-bg:     #1C1C1E;
+  --hc-input-field:  #1C1C1E;
+  --hc-input-border: #38383A;
+  --hc-card-bg:      #1C1C1E;
+  --hc-overlay:      rgba(0, 0, 0, .60);
+}
+
+.hc-big {
+  --hc-fs-large-title: 40px;
+  --hc-fs-nav:          20px;
+  --hc-fs-bubble:       21px;
+  --hc-fs-name:         20px;
+  --hc-fs-preview:      17px;
+  --hc-fs-sub:          15px;
+  --hc-fs-tiny:         13px;
+  --hc-row-h:           66px;
+  --hc-bubble-max:      85%;
+}
+
+.hc-av-c0 { background: #FF9500; }
+.hc-av-c1 { background: #FF2D55; }
+.hc-av-c2 { background: #AF52DE; }
+.hc-av-c3 { background: #5856D6; }
+.hc-av-c4 { background: #007AFF; }
+.hc-av-c5 { background: #5AC8FA; }
+.hc-av-c6 { background: #34C759; }
+.hc-av-c7 { background: #FF3B30; }

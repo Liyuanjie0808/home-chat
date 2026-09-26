@@ -1,0 +1,26 @@
+{
+  "name": "home-chat-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Home Chat 局域网聊天服务端 —— 只依赖一个纯 JS 包，零原生编译",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node src/selftest.js && node src/domtest.js && node src/apitest.js && node src/crosstest.js && node src/webtest.js && node src/boottest.js && node src/e2etest.js",
+    "selftest": "node src/selftest.js",
+    "crosstest": "node src/crosstest.js",
+    "webtest": "node src/webtest.js",
+    "domtest": "node src/domtest.js",
+    "apitest": "node src/apitest.js",
+    "boottest": "node src/boottest.js",
+    "voicetest": "node src/voicetest.js",
+    "e2e": "node src/e2etest.js",
+    "audit": "node src/audit.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

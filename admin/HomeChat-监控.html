@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Chat · 服务监控</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A84FF'/%3E%3Ccircle cx='31' cy='50' r='7.5' fill='white'/%3E%3Ccircle cx='50' cy='50' r='7.5' fill='white'/%3E%3Ccircle cx='69' cy='50' r='7.5' fill='white'/%3E%3C/svg%3E">
+<style>
+/* ============================================================================
+ *  Home Chat — 服务监控面板
+ *
+ *  ★ 这里**看不到任何聊天内容**，一条也看不到。
+ *    以前这叫「上帝视角后台」，会把最近 200 条消息解密成明文显示出来。
+ *    为了安全，那条能力已经从服务端彻底删掉了（server/src/hub.js 的 snapshot）。
+ *
+ *    留在这里的是"服务端还健康吗、有没有异常"：
+ *    跑了多久、吃多少内存、今天多少条消息、中转文件几个、谁在线、谁在等着批准。
+ * ========================================================================== */
+
+:root{
+  --bg:#0A0A0C; --card:#1C1C1E; --card2:#2C2C2E;
+  --text:#FFFFFF; --t2:rgba(235,235,245,.60); --t3:rgba(235,235,245,.32);
+  --sep:rgba(84,84,88,.36);
+  --blue:#0A84FF; --green:#30D158; --orange:#FF9F0A; --red:#FF453A;
+  --ease:cubic-bezier(.25,.1,.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh; padding:0 0 60px;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+/* ---------- 顶栏 ---------- */
+header{
+  position:sticky;top:0;z-index:10;
+  background:rgba(10,10,12,.78);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+          backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid var(--sep);
+  margin-bottom:22px;
+}
+header .wrap{display:flex;align-items:center;gap:12px;height:56px}
+.logo{
+  width:26px;height:26px;border-radius:7px;flex:0 0 auto;
+  background:linear-gradient(180deg,#0A84FF,#0066DD);
+  display:flex;align-items:center;justify-content:center;gap:2.5px;
+}
+.logo i{width:3.5px;height:3.5px;border-radius:50%;background:#fff}
+header h1{font-size:16px;font-weight:600;letter-spacing:-.3px}
+header .sub{font-size:12px;color:var(--t2);margin-left:auto;
+  display:flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--t3);flex:0 0 auto}
+.dot.on{background:var(--green);box-shadow:0 0 7px var(--green)}
+.dot.off{background:var(--red)}
+
+/* ---------- 提示条 ---------- */
+.notice{
+  display:flex;gap:10px;align-items:flex-start;
+  background:rgba(10,132,255,.10); border:1px solid rgba(10,132,255,.28);
+  border-radius:12px; padding:13px 15px; margin-bottom:20px;
+}
+.notice .ic{font-size:17px;line-height:1.2;flex:0 0 auto}
+.notice b{font-weight:600}
+.notice .t{font-size:13px;color:var(--t2);line-height:1.65;margin-top:3px}
+.notice code{background:rgba(255,255,255,.09);padding:1px 5px;border-radius:4px;font-size:12px}
+
+/* ---------- 大数字格子 ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px;margin-bottom:24px}
+.tile{background:var(--card);border-radius:14px;padding:15px 16px 14px;border:1px solid var(--sep)}
+.tile .k{font-size:12px;color:var(--t2);letter-spacing:.2px}
+.tile .v{
+  font-size:27px;font-weight:600;letter-spacing:-1px;margin-top:6px;
+  font-variant-numeric:tabular-nums; line-height:1.15;
+}
+.tile .v small{font-size:13px;font-weight:500;color:var(--t2);letter-spacing:0;margin-left:2px}
+.tile .n{font-size:11px;color:var(--t3);margin-top:4px;letter-spacing:0;line-height:1.4}
+.tile.warn .v{color:var(--orange)}
+.tile.bad  .v{color:var(--red)}
+.tile.good .v{color:var(--green)}
+
+.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.10);margin-top:9px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:2px;background:var(--green);
+  transition:width 400ms var(--ease),background 400ms var(--ease)}
+
+/* ---------- 区块 ---------- */
+section{margin-bottom:24px}
+h2{
+  font-size:13px;font-weight:600;color:var(--t2);
+  letter-spacing:.4px;margin-bottom:9px;padding-left:2px;
+  display:flex;align-items:center;gap:7px;
+}
+h2 .cnt{background:rgba(255,255,255,.10);color:var(--t2);
+  font-size:11px;padding:1px 7px;border-radius:99px;font-weight:500}
+.card{background:var(--card);border:1px solid var(--sep);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 15px;border-bottom:1px solid var(--sep)}
+.row:last-child{border-bottom:none}
+.row .nm{font-weight:500}
+.row .meta{font-size:12px;color:var(--t2);margin-top:1px;line-height:1.45}
+.row .r{margin-left:auto;display:flex;align-items:center;gap:8px;flex:0 0 auto;
+  font-variant-numeric:tabular-nums}
+.empty{padding:20px 15px;color:var(--t3);font-size:13px;text-align:center}
+
+/* ---------- 按钮 ---------- */
+button{
+  font:inherit;font-size:13px;font-weight:500;
+  border:none;border-radius:9px;padding:7px 14px;cursor:pointer;
+  background:var(--card2);color:var(--text);
+  transition:transform 140ms var(--ease),filter 140ms var(--ease),opacity 140ms var(--ease);
+}
+button:active{transform:scale(.96)}
+button:hover{filter:brightness(1.15)}
+button.primary{background:var(--green);color:#00300F;font-weight:600}
+button.danger{background:var(--red);color:#fff}
+button.ghost{background:transparent;border:1px solid var(--sep);color:var(--t2)}
+button:disabled{opacity:.4;cursor:default;transform:none;filter:none}
+
+/* ---------- 波形图 ---------- */
+.wave { padding: 14px 15px 10px; border-bottom: 1px solid var(--sep); }
+.wave:last-child { border-bottom: none; }
+.wave .wk {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.wave .wk span { font-size: 12.5px; color: var(--t2); }
+.wave .wk b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wave .spark { width: 100%; height: 90px; display: block; }
+.wave .wlg {
+  display: flex; gap: 16px; margin-top: 7px;
+  font-size: 11px; color: var(--t3);
+}
+.wave .wlg i {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 5px; vertical-align: -1px;
+}
+
+/* ---------- 账号 ---------- */
+.row.acct { align-items: flex-start; }
+.row.acct .who { min-width: 0; flex: 1; }
+.row.acct .nm { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .3px;
+  padding: 1.5px 6px; border-radius: 5px;
+  background: rgba(10,132,255,.18); color: var(--blue);
+}
+.tag.local { background: rgba(191,90,242,.18); color: #BF5AF2; }
+.tag.me    { background: rgba(48,209,88,.16);  color: var(--green); }
+.row.acct .r { padding-top: 1px; }
+.row.acct .meta { font-variant-numeric: tabular-nums; }
+.row.acct .meta b { color: var(--t2); font-weight: 500; }
+.selfnote { font-size: 11px; color: var(--t3); margin-top: 3px; }
+
+/* ---------- 有待批准时的醒目横幅 ---------- */
+#pBanner {
+  display: none;
+  align-items: center; gap: 11px;
+  background: rgba(255,159,10,.13);
+  border: 1px solid rgba(255,159,10,.42);
+  border-radius: 12px; padding: 13px 15px; margin-bottom: 20px;
+  animation: banner-breathe 2.2s var(--ease) infinite;
+}
+#pBanner.on { display: flex; }
+@keyframes banner-breathe {
+  0%,100% { border-color: rgba(255,159,10,.42); }
+  50%     { border-color: rgba(255,159,10,.85); }
+}
+#pBanner .ic { font-size: 20px; flex: 0 0 auto; }
+#pBanner .tx { flex: 1; min-width: 0 }
+#pBanner b { font-weight: 600 }
+#pBanner .t { font-size: 12.5px; color: var(--t2); margin-top: 2px }
+
+/* ---------- 日志 ---------- */
+#logs{max-height:290px;overflow-y:auto;font-size:12.5px;line-height:1.75;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#logs .l{padding:5px 15px;border-bottom:1px solid rgba(84,84,88,.18);display:flex;gap:10px}
+#logs .l:last-child{border-bottom:none}
+#logs .tm{color:var(--t3);flex:0 0 auto;font-variant-numeric:tabular-nums}
+#logs .tx{color:var(--t2);word-break:break-word}
+#logs .l.warn .tx{color:var(--orange)}
+#logs .l.bad  .tx{color:var(--red)}
+#logs .l.ok   .tx{color:var(--green)}
+
+.footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--sep);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.footer .hint{font-size:12px;color:var(--t3)}
+
+/* ---------- 登录 ---------- */
+#gate{position:fixed;inset:0;z-index:100;background:var(--bg);
+  display:flex;align-items:center;justify-content:center}
+#gate .box{width:310px;text-align:center}
+#gate .logo{width:56px;height:56px;border-radius:15px;margin:0 auto 16px;gap:5px}
+#gate .logo i{width:7px;height:7px}
+#gate h3{font-size:19px;font-weight:600;letter-spacing:-.4px;margin-bottom:5px}
+#gate p{font-size:13px;color:var(--t2);margin-bottom:20px}
+#gate input{width:100%;font:inherit;font-size:17px;text-align:center;letter-spacing:4px;
+  background:var(--card);border:1px solid var(--sep);border-radius:11px;
+  padding:13px;color:var(--text);outline:none}
+#gate input:focus{border-color:var(--blue)}
+#gate button{width:100%;margin-top:11px;padding:12px;font-size:15px;font-weight:600;
+  background:var(--blue);color:#fff}
+#gate .err{color:var(--red);font-size:12.5px;margin-top:10px;min-height:17px}
+#gate.gone{display:none}
+/* 没验证通过之前，页面内容一律不显示 —— 就算 gate 那层因为什么原因
+   没盖住（浏览器缓存、CSS 没加载完、脚本报错），也看不到任何数据。 */
+body.locked > *:not(#gate){display:none !important}
+
+.toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,16px);
+  background:rgba(44,44,46,.95);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  padding:10px 18px;border-radius:11px;font-size:13.5px;
+  opacity:0;pointer-events:none;transition:opacity 220ms var(--ease),transform 220ms var(--ease);
+  z-index:200}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body class="locked">
+
+<div id="gate">
+  <div class="box">
+    <div class="logo"><i></i><i></i><i></i></div>
+    <h3>Home Chat 监控</h3>
+    <p>输入电脑端的密码</p>
+    <input id="pwd" type="password" inputmode="numeric" placeholder="••••••" autocomplete="off">
+    <button id="btnLogin">进 入</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="logo"><i></i><i></i><i></i></div>
+    <h1>服务监控</h1>
+    <div class="sub">
+      <span class="dot" id="connDot"></span>
+      <span id="connTxt">连接中…</span>
+      <span id="srvInfo" style="margin-left:10px;color:var(--t3)"></span>
+      <span style="margin-left:10px;color:var(--t3)">已运行 <b id="tUptime" style="color:var(--t2);font-weight:500">—</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="notice">
+    <span class="ic">🔒</span>
+    <div>
+      <b>这个页面看不到任何聊天内容</b>
+      <div class="t">
+        以前这里叫「上帝视角后台」，会把最近 200 条消息<b>解密成明文</b>显示出来。
+        现在那条能力已经从服务端彻底删掉了 —— 这里只剩<b>数量</b>：谁发了多少条、
+        哪个聊天里有多少条。一个字的内容都看不到，连服务端的日志里也只有"谁做了什么"。
+        <br>电脑要看自己的聊天，走正常客户端（<code>打开电脑版聊天.command</code>），跟手机一样的权限。
+      </div>
+    </div>
+  </div>
+
+  <div id="pBanner">
+    <span class="ic">⏳</span>
+    <div class="tx">
+      <b id="pBannerT">有设备在等着你同意</b>
+      <div class="t">新账号**必须**在电脑上过一遍才会入册 —— 手机那边现在收到的提示是「等电脑上确认」。</div>
+    </div>
+    <button class="primary" id="pBannerOk">放行</button>
+    <button class="ghost" id="pBannerGo">去看</button>
+  </div>
+
+  <div class="grid">
+    <div class="tile">
+      <div class="k">今日消息</div>
+      <div class="v" id="tToday">—</div>
+      <div class="n">从今天 0 点算起</div>
+    </div>
+    <div class="tile">
+      <div class="k">累计消息</div>
+      <div class="v" id="tTotal">—</div>
+      <div class="n" id="nStarted">—</div>
+    </div>
+    <div class="tile">
+      <div class="k">会话数</div>
+      <div class="v" id="tConvs">—</div>
+      <div class="n">单聊 + 群聊</div>
+    </div>
+    <div class="tile" id="tileOnline">
+      <div class="k">在线</div>
+      <div class="v" id="tOnline">—</div>
+      <div class="n" id="nOnline">—</div>
+    </div>
+    <div class="tile" id="tileMem">
+      <div class="k">内存占用</div>
+      <div class="v"><span id="tRss">—</span><small>MB</small></div>
+      <div class="bar"><i id="memBar" style="width:0"></i></div>
+      <div class="n" id="nMem">目标 &lt; 80 MB</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>最近 10 分钟</h2>
+    <div class="card">
+      <div class="wave">
+        <div class="wk"><span>内存占用</span><b id="wMemNow">—</b></div>
+        <svg class="spark" id="sparkMem" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="wave">
+        <div class="wk"><span>焚毁状态</span><b id="wBurnNow">—</b></div>
+        <svg class="spark" id="sparkBurn" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+        <div class="wlg">
+          <span><i style="background:var(--orange)"></i>倒计时中</span>
+          <span><i style="background:var(--t3)"></i>等着被读</span>
+        </div>
+      </div>
+      <div class="wave">
+        <div class="wk"><span>今日消息累计</span><b id="wMsgNow">—</b></div>
+        <svg class="spark" id="sparkMsg" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>每个人发了多少 <span class="cnt" id="byUserCnt">0</span></h2>
+    <div class="card" id="byUser"><div class="empty">—</div></div>
+  </section>
+
+  <section>
+    <h2>每个聊天里有多少 <span class="cnt" id="byConvCnt">0</span></h2>
+    <div class="card" id="byConv"><div class="empty">—</div></div>
+  </section>
+
+  <section>
+    <h2>阅后即焚（也算消息）</h2>
+    <div class="card">
+      <div class="row">
+        <div><div class="nm">等着被读</div><div class="meta">发出去了，但还没人读 → 不倒计时</div></div>
+        <div class="r"><b id="bWait">—</b></div>
+      </div>
+      <div class="row">
+        <div><div class="nm">正在倒计时</div><div class="meta">已经被读了，到点两端一起烧掉</div></div>
+        <div class="r"><b id="bArmed" style="color:var(--orange)">—</b></div>
+      </div>
+      <div class="row">
+        <div><div class="nm">累计销毁</div><div class="meta">焚毁 + 撤回（共用同一套"墓碑"机制）</div></div>
+        <div class="r"><b id="bDone">—</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="secPending" style="display:none">
+    <h2>等着进群的新成员 <span class="cnt" id="pCnt">0</span></h2>
+    <div class="card" id="pendingList"></div>
+  </section>
+
+  <section id="secUsers">
+    <h2>账号 <span class="cnt" id="uCnt">0</span></h2>
+    <div class="card" id="userList"><div class="empty">—</div></div>
+    <div class="selfnote" style="padding:8px 2px 0">
+      这里只有账号本身的信息（叫什么、哪台设备、什么时候进的、最后什么时候在线）。
+      一个字的消息内容都没有 —— 那是设计如此。
+    </div>
+  </section>
+
+  <section>
+    <h2>安全事件（最近 60 条）<span class="cnt" id="lCnt">0</span></h2>
+    <div class="card"><div id="logs"><div class="empty">—</div></div></div>
+  </section>
+
+  <div class="footer">
+    <button class="danger" id="btnStop">停止服务</button>
+    <span class="hint">点完之后端口释放，手机就连不上了。要恢复就重新双击「启动HomeChat.command」。</span>
+  </div>
+
+  <div style="height:30px"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+var WS_URL = 'ws://127.0.0.1:8787/admin';
+var ws = null, authed = false, reconnectTimer = null, backoff = 800, startedAt = 0;
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function toast(msg, ms){
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._h);
+  t._h = setTimeout(function(){ t.classList.remove('on'); }, ms || 2200);
+}
+function send(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+/* ---------------------------------------------------------- 格式化 */
+
+function fmtDuration(sec){
+  sec = Math.max(0, Math.floor(sec || 0));
+  var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600);
+  var m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  function p(n){ return n < 10 ? '0' + n : '' + n; }
+  if (d) return d + ' 天 ' + h + ' 小时';
+  if (h) return h + ':' + p(m) + ':' + p(s);
+  return m + ':' + p(s);
+}
+function fmtTime(ts){
+  var d = new Date(ts);
+  function p(n){ return n < 10 ? '0' + n : '' + n; }
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function fmtMB(mb){
+  mb = Number(mb) || 0;
+  if (mb < 1) return (mb * 1024).toFixed(0) + ' KB';
+  if (mb < 1024) return mb.toFixed(1) + ' MB';
+  return (mb / 1024).toFixed(2) + ' GB';
+}
+
+/* ---------------------------------------------------------- 渲染 */
+
+function renderStats(st){
+  if (!st) return;
+  startedAt = st.startedAt || (Date.now() - (st.uptime || 0) * 1000);
+
+  /* 消息 —— 这个面板的主角，别的一概不统计 */
+  $('tToday').textContent = st.msgToday == null ? '—' : st.msgToday;
+  $('tTotal').textContent = st.msgTotal == null ? '—' : st.msgTotal;
+  $('tConvs').textContent = st.convs == null ? '—' : st.convs;
+  $('nStarted').textContent = startedAt ? ('服务启动于 ' + fmtDate(startedAt)) : '';
+
+  /* 在线 */
+  $('tOnline').textContent = st.onlineDevices == null ? '—' : st.onlineDevices;
+  $('nOnline').textContent = (st.onlineUsers || 0) + ' 个人 · ' +
+                             ((st.adminOnline || 0) > 0 ? '电脑也在看' : '电脑没开');
+  $('tileOnline').className = 'tile' + ((st.onlineDevices || 0) > 0 ? ' good' : '');
+
+  /* 阅后即焚（算消息的一部分） */
+  $('bWait').textContent  = st.burnWaiting == null ? '—' : st.burnWaiting;
+  $('bArmed').textContent = st.burnArmed   == null ? '—' : st.burnArmed;
+  $('bDone').textContent  = st.burnDone    == null ? '—' : st.burnDone;
+
+  /* 内存占用（用户要的） */
+  $('tRss').textContent = st.rssMB == null ? '—' : st.rssMB;
+  var pct = Math.min(100, (st.rssMB || 0) / 80 * 100);
+  var lvl = (st.rssMB || 0) > 140 ? 'bad' : ((st.rssMB || 0) > 80 ? 'warn' : 'good');
+  $('memBar').style.width = pct + '%';
+  $('memBar').style.background = lvl === 'bad' ? 'var(--red)'
+                              : (lvl === 'warn' ? 'var(--orange)' : 'var(--green)');
+  $('tileMem').className = 'tile ' + (lvl === 'good' ? '' : lvl);
+  $('nMem').textContent = '目标 < 80 MB · 已用 ' + pct.toFixed(0) + '%';
+
+  renderWaves(st);
+  renderMsgBreakdown(st);
+  tickUptime();
+}
+
+/** 按人 / 按会话的消息分布 */
+function renderMsgBreakdown(st){
+  var users = st.msgByUser || [];
+  var convs = st.msgByConv || [];
+
+  $('byUserCnt').textContent = users.length;
+  var ub = $('byUser');
+  if (!users.length) {
+    ub.innerHTML = '<div class="empty">还没有人发过消息</div>';
+  } else {
+    ub.innerHTML = users.map(function(u){
+      return '<div class="row">' +
+        '<div class="who"><div class="nm">' + esc(u.name) +
+          (u.role === 'admin' ? '<span class="tag">电脑</span>' : '') + '</div>' +
+          '<div class="meta">累计 ' + u.total + ' 条</div></div>' +
+        '<div class="r"><b>' + (u.today || 0) + '</b>' +
+          '<span style="color:var(--t3);font-size:12px">今天</span></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  $('byConvCnt').textContent = convs.length;
+  var cb = $('byConv');
+  if (!convs.length) {
+    cb.innerHTML = '<div class="empty">还没有会话</div>';
+  } else {
+    cb.innerHTML = convs.map(function(c){
+      return '<div class="row">' +
+        '<div class="who"><div class="nm">' + esc(c.title) +
+          (c.type === 'group' ? '<span class="tag">' + c.memberCount + ' 人</span>' : '') + '</div>' +
+          '<div class="meta">累计 ' + c.total + ' 条</div></div>' +
+        '<div class="r"><b>' + (c.today || 0) + '</b>' +
+          '<span style="color:var(--t3);font-size:12px">今天</span></div>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+function tickUptime(){
+  $('tUptime').textContent = startedAt ? fmtDuration((Date.now() - startedAt) / 1000) : '—';
+}
+setInterval(tickUptime, 1000);
+
+function fmtDate(ts){
+  if (!ts) return '—';
+  var d = new Date(ts);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' +
+         (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' +
+         (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+}
+function fmtAgo(ts){
+  if (!ts) return '';
+  var s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return '刚刚';
+  if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
+  if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
+  return Math.floor(s / 86400) + ' 天前';
+}
+
+/**
+ * 账号列表。
+ *
+ * ★ 这里能看到的是**账号本身**：叫什么、哪台设备、什么时候进的、
+ *   最后什么时候在线、从哪个 IP 来的。
+ *   **一点消息内容都没有** —— 那是设计如此（见服务端 snapshot() 的注释）。
+ */
+function renderUsers(users){
+  var box = $('userList');
+  var list = (users || []).slice().sort(function(a, b){
+    if (a.online !== b.online) return a.online ? -1 : 1;
+    return (b.lastSeen || 0) - (a.lastSeen || 0);
+  });
+  $('uCnt').textContent = list.length;
+
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">还没有人。手机连上来、你在终端按 Y 之后就会出现在这里。</div>';
+    return;
+  }
+
+  box.innerHTML = list.map(function(u){
+    var id = esc(u.id || '');
+    var tags = '';
+    if (u.isLocal) tags += '<span class="tag local">这台电脑</span>';
+    if (u.role === 'admin') tags += '<span class="tag">管理员</span>';
+
+    var dev = [];
+    // 设备型号跟你给它起的名字一样时就别重复显示了（手机上默认就是这么报的）
+    if (u.deviceName && u.deviceName !== u.name) dev.push(esc(u.deviceName));
+    if (u.device) dev.push('设备 <b>' + esc(u.device) + '</b>');
+
+    var line2 = dev.join(' · ') || '（没记录设备）';
+    line2 += ' · 加入 ' + fmtDate(u.joinedAt);
+
+    var line3 = u.online
+      ? '<span style="color:var(--green)">● 在线</span>'
+      : ('○ 离线' + (u.lastSeen ? '，最后 ' + fmtAgo(u.lastSeen) : ''));
+    if (u.lastIp) line3 += ' · 来自 ' + esc(u.lastIp);
+
+    return '<div class="row acct">' +
+      '<span class="dot ' + (u.online ? 'on' : '') + '" style="margin-top:6px"></span>' +
+      '<div class="who">' +
+        '<div class="nm">' + esc(u.name) + tags + '</div>' +
+        '<div class="meta">' + line2 + '</div>' +
+        '<div class="meta">' + line3 + '</div>' +
+      '</div>' +
+      '<div class="r">' +
+        '<button class="ghost" data-rn="' + id + '" data-nm="' + esc(u.name) + '">改名</button>' +
+        (u.isLocal ? '' : '<button class="ghost" data-rm="' + id + '" data-nm="' + esc(u.name) + '">移除</button>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  box.querySelectorAll('[data-rn]').forEach(function(b){
+    b.onclick = function(){
+      var cur = b.getAttribute('data-nm') || '';
+      var v = prompt('把「' + cur + '」改成什么名字？', cur);
+      if (v == null) return;
+      var n = String(v).trim().slice(0, 16);
+      if (!n || n === cur) return;
+      send({ t: 'admin.rename', userId: b.getAttribute('data-rn'), name: n });
+      toast('已改名为「' + n + '」');
+      setTimeout(function(){ send({ t: 'admin.monitor' }); }, 400);
+    };
+  });
+
+  box.querySelectorAll('[data-rm]').forEach(function(b){
+    b.onclick = function(){
+      var nm = b.getAttribute('data-nm') || '';
+      if (!confirm('确定把「' + nm + '」从 Home Chat 里移除吗？\n\n' +
+                   '· 他的设备会被断线\n' +
+                   '· 聊天记录不会删（那是双方共有的）\n' +
+                   '· 他再连上来会被当成新设备，要重新批准')) return;
+      send({ t: 'admin.remove', userId: b.getAttribute('data-rm') });
+      toast('已移除「' + nm + '」');
+      setTimeout(function(){ send({ t: 'admin.monitor' }); }, 400);
+    };
+  });
+}
+
+var lastPending = [];
+
+function renderPending(list){
+  list = list || [];
+  lastPending = list;
+
+  /* 有待批准的就把横幅点亮 —— 新账号必须在电脑上过一遍，
+   * 不能让它悄悄躺在页面底下没人看见。 */
+  var banner = $('pBanner');
+  if (banner) {
+    banner.classList.toggle('on', list.length > 0);
+    if (list.length) {
+      var names = list.map(function(p){ return p.name || '一台新设备'; }).join('、');
+      $('pBannerT').textContent = list.length === 1
+        ? ('「' + names + '」想加入，等你同意')
+        : (list.length + ' 台设备想加入，等你同意');
+    }
+  }
+
+  $('secPending').style.display = list.length ? 'block' : 'none';
+  $('pCnt').textContent = list.length;
+  var box = $('pendingList');
+  if (!list.length) { box.innerHTML = ''; return; }
+
+  box.innerHTML = list.map(function(p){
+    var id = esc(p.deviceId || '');
+    var waited = p.at ? (' · 等了 ' + fmtAgo(p.at)) : '';
+    return '<div class="row">' +
+      '<span class="dot" style="background:var(--orange)"></span>' +
+      '<div class="who"><div class="nm">' + esc(p.name || '(没写名字)') + '</div>' +
+      '<div class="meta">来自 ' + esc(p.ip || '未知') + waited + '</div>' +
+      '<div class="meta" style="font-size:11px;opacity:.7">设备 ' + esc(p.deviceId || '') + '</div></div>' +
+      '<div class="r">' +
+        '<button class="primary" data-ok="' + id + '">同意</button>' +
+        '<button class="ghost" data-no="' + id + '">拒绝</button>' +
+      '</div></div>';
+  }).join('');
+
+  box.querySelectorAll('[data-ok]').forEach(function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-ok');
+      var hit = list.filter(function(x){ return x.deviceId === id; })[0] || {};
+      send({ t: 'admin.approve', deviceId: id, name: hit.name || '新成员' });
+      toast('已同意「' + (hit.name || '新成员') + '」');
+      b.disabled = true;
+    };
+  });
+  box.querySelectorAll('[data-no]').forEach(function(b){
+    b.onclick = function(){
+      send({ t: 'admin.reject', deviceId: b.getAttribute('data-no') });
+      toast('已拒绝');
+      b.disabled = true;
+    };
+  });
+}
+
+function renderLogs(logs){
+  var box = $('logs');
+  logs = logs || [];
+  $('lCnt').textContent = logs.length;
+  if (!logs.length) { box.innerHTML = '<div class="empty">还没有记录</div>'; return; }
+
+  var wasBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  box.innerHTML = logs.map(function(l){
+    // ★ 服务端每条是 { at, line }（见 store.js 的 log()），不是 msg/ts
+    var txt = l.line || l.msg || l.text || String(l);
+    var ts  = l.at || l.ts || l.time || 0;
+    var cls = /焚毁|撤回|拒绝|移除|超时/i.test(txt) ? 'warn'
+            : /错误|出错|失败|wrong|error|denied/i.test(txt) ? 'bad'
+            : /入册|批准|上线|接入/i.test(txt) ? 'ok' : '';
+    return '<div class="l ' + cls + '">' +
+      '<span class="tm">' + (ts ? fmtTime(ts) : '') + '</span>' +
+      '<span class="tx">' + esc(txt) + '</span></div>';
+  }).join('');
+  if (wasBottom) box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------------------------------------------------- 波形图 */
+
+/**
+ * 画一张折线波形。
+ *
+ * 自己用 SVG 画 —— 不引任何图表库（这台电脑不要装多余的依赖）。
+ * viewBox 固定 600×90，宽度由 CSS 拉伸，所以不用管容器多宽。
+ */
+function sparkline(elId, series, opt) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  opt = opt || {};
+
+  var W = 600, H = 90, PAD = 4;
+  var n = 0;
+  series.forEach(function (sr) { n = Math.max(n, (sr.v || []).length); });
+
+  if (n < 2) {
+    el.innerHTML = '<text x="' + (W / 2) + '" y="' + (H / 2 + 4) + '" text-anchor="middle" ' +
+      'fill="rgba(235,235,245,.28)" font-size="13">还在采样…（每 5 秒一个点）</text>';
+    return;
+  }
+
+  // 纵轴范围：所有序列里最大/最小值，留一点余量
+  var lo = Infinity, hi = -Infinity;
+  series.forEach(function (sr) {
+    (sr.v || []).forEach(function (x) {
+      if (x < lo) lo = x;
+      if (x > hi) hi = x;
+    });
+  });
+  if (opt.min != null) lo = Math.min(lo, opt.min);
+  if (hi - lo < 1e-6) { hi = lo + 1; }              // 全平的时候别除以 0
+  var span = hi - lo;
+  lo -= span * 0.12; hi += span * 0.12;
+  span = hi - lo;
+
+  function px(i, total) { return PAD + (W - PAD * 2) * (total <= 1 ? 0 : i / (total - 1)); }
+  function py(v) { return H - PAD - (H - PAD * 2) * ((v - lo) / span); }
+
+  var out = '';
+
+  // 横向参考线
+  out += '<line x1="0" y1="' + H + '" x2="' + W + '" y2="' + H + '" stroke="rgba(84,84,88,.25)" stroke-width="1"/>';
+
+  series.forEach(function (sr) {
+    var v = sr.v || [];
+    if (v.length < 2) return;
+    var pts = v.map(function (x, i) { return px(i, v.length).toFixed(1) + ',' + py(x).toFixed(1); });
+
+    // 面积填充（只有第一条画）
+    if (sr.fill) {
+      out += '<polygon points="' + px(0, v.length).toFixed(1) + ',' + H + ' ' +
+             pts.join(' ') + ' ' + px(v.length - 1, v.length).toFixed(1) + ',' + H +
+             '" fill="' + sr.fill + '"/>';
+    }
+    out += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + (sr.color || '#0A84FF') +
+           '" stroke-width="' + (sr.width || 2) + '" stroke-linejoin="round" stroke-linecap="round"' +
+           (sr.dash ? ' stroke-dasharray="' + sr.dash + '"' : '') + '/>';
+
+    // 最后一个点画个圆，一眼看到"现在是多少"
+    var lv = v[v.length - 1];
+    out += '<circle cx="' + px(v.length - 1, v.length).toFixed(1) + '" cy="' + py(lv).toFixed(1) +
+           '" r="3.5" fill="' + (sr.color || '#0A84FF') + '"/>';
+  });
+
+  el.innerHTML = out;
+}
+
+function renderWaves(st) {
+  var sp = st.samples || {};
+  var rss  = sp.rss || [];
+  var arm  = sp.burnArmed || [];
+  var wait = sp.burnWaiting || [];
+  var msg  = sp.msgToday || [];
+
+  sparkline('sparkMem', [
+    { v: rss, color: '#0A84FF', fill: 'rgba(10,132,255,.16)' }
+  ]);
+
+  sparkline('sparkBurn', [
+    { v: arm,  color: '#FF9F0A', fill: 'rgba(255,159,10,.18)' },
+    { v: wait, color: 'rgba(235,235,245,.45)', width: 1.6, dash: '4 4' }
+  ], { min: 0 });
+
+  sparkline('sparkMsg', [
+    { v: msg, color: '#30D158', fill: 'rgba(48,209,88,.16)' }
+  ], { min: 0 });
+
+  var last = function (a) { return a.length ? a[a.length - 1] : null; };
+  $('wMemNow').textContent  = last(rss) == null ? '—' : (last(rss) + ' MB');
+  $('wBurnNow').textContent = '倒计时 ' + (last(arm) || 0) + ' · 等待 ' + (last(wait) || 0);
+  $('wMsgNow').textContent  = (last(msg) || 0) + ' 条';
+}
+
+/* ---------------------------------------------------------- 连接 */
+
+function setConn(state, txt){
+  $('connDot').className = 'dot ' + state;
+  $('connTxt').textContent = txt;
+}
+
+function connect(){
+  clearTimeout(reconnectTimer);
+  try { ws = new WebSocket(WS_URL); }
+  catch (e) { setConn('off', '连不上'); return; }
+
+  ws.onopen = function(){
+    backoff = 800;
+    setConn('', '已连接，等密码…');
+  };
+
+  ws.onmessage = function(ev){
+    var m;
+    try { m = JSON.parse(ev.data); } catch (e) { return; }
+
+    switch (m.t) {
+      case 'admin.needpwd':
+        authed = false;
+        document.body.classList.add('locked');
+        $('gate').classList.remove('gone');
+        setTimeout(function(){ try { $('pwd').focus(); } catch (e) {} }, 60);
+        break;
+
+      case 'admin.ok':
+        authed = true;
+        document.body.classList.remove('locked');
+        $('gate').classList.add('gone');
+        setConn('on', '运行中');
+        if (m.stats) renderStats(m.stats);
+        break;
+
+      case 'admin.snapshot':
+        renderStats(m.stats);
+        renderUsers(m.users);
+        renderPending(m.pending);
+        renderLogs(m.logs);
+        $('srvInfo').textContent =
+          (m.serverName || '') + ' v' + (m.ver || '') + ' · ' + (m.ip || '') + ':' + (m.port || '');
+        break;
+
+      case 'admin.stats':
+        renderStats(m.stats || m);
+        break;
+
+      /* ★ 服务端推的字段名是 devices（见 hub.js 的 adminBroadcast）。
+       *   以前这里读的是 m.pending —— 字段名对不上，
+       *   于是「有人等着批准」只有 5 秒一次的轮询才刷得出来，
+       *   实时推送整个被丢了。 */
+      case 'admin.pending':
+        renderPending(m.devices || m.pending || m.list || []);
+        break;
+
+      case 'admin.err':
+        if (m.code === 'BADPWD') {
+          authed = false;
+          document.body.classList.add('locked');
+          $('gateErr').textContent = '密码不对，再试一次';
+          $('gate').classList.remove('gone');
+          $('pwd').value = '';
+          try { $('pwd').focus(); } catch (e) {}
+          setConn('', '等密码');
+        } else {
+          toast(m.msg || m.code || '出错了');
+        }
+        break;
+
+      case 'admin.bye':
+        setConn('off', '服务端已停止');
+        authed = false;
+        break;
+    }
+  };
+
+  ws.onclose = function(){
+    setConn('off', '断开了，正在重连…');
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(function(){
+      backoff = Math.min(backoff * 1.6, 8000);
+      connect();
+    }, backoff);
+  };
+  ws.onerror = function(){ /* onclose 会跟着来 */ };
+}
+
+/* ---------------------------------------------------------- 交互 */
+
+$('btnLogin').onclick = function(){
+  var v = $('pwd').value;
+  if (!v) { $('gateErr').textContent = '密码不能空着'; return; }
+  $('gateErr').textContent = '';
+  setConn('', '正在验证…');
+  send({ t: 'admin.login', pwd: v });
+};
+$('pwd').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') $('btnLogin').click();
+});
+
+/* ★ 用户要的：「如果新设备要进入的话，你难道不应该在上面增加一个放行吗」
+ *   所以横幅上直接给一个【放行】，不用先滚下去找。 */
+$('pBannerOk').onclick = function(){
+  var list = lastPending || [];
+  if (!list.length) { toast('现在没有等着的设备'); return; }
+  if (list.length === 1) {
+    send({ t: 'admin.approve', deviceId: list[0].deviceId, name: list[0].name });
+    toast('已放行「' + (list[0].name || '新设备') + '」');
+  } else {
+    ui_pickApprove(list);
+  }
+  setTimeout(function(){ send({ t: 'admin.monitor' }); }, 500);
+};
+
+/** 好几个等着的时候，让用户挑一个放行 */
+function ui_pickApprove(list) {
+  var name = prompt('有 ' + list.length + ' 台设备等着。\n\n' +
+                    list.map(function (p, i) { return (i + 1) + '. ' + (p.name || '未命名'); }).join('\n') +
+                    '\n\n输入要放行的编号：', '1');
+  var i = parseInt(name, 10) - 1;
+  if (!(i >= 0 && i < list.length)) return;
+  send({ t: 'admin.approve', deviceId: list[i].deviceId, name: list[i].name });
+  toast('已放行「' + (list[i].name || '新设备') + '」');
+}
+
+$('pBannerGo').onclick = function(){
+  var el = $('secPending');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+$('btnStop').onclick = function(){
+  if (!confirm('确定要停止 Home Chat 服务端吗？\n\n停止之后手机就连不上了。\n要恢复就重新双击「启动HomeChat.command」。')) return;
+  send({ t: 'admin.shutdown' });
+  toast('正在停止服务…');
+};
+
+/* 每 5 秒拉一次最新状态 —— 后台不再有消息推送了，只剩这一个轮询 */
+setInterval(function(){ if (authed) send({ t: 'admin.monitor' }); }, 5000);
+
+connect();
+
+})();
+</script>
+</body>
+</html>
